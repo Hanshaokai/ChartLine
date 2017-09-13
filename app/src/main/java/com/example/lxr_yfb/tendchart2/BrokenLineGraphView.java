@@ -23,6 +23,9 @@ import java.util.List;
  * 折线趋势渐变 图 hsk
  */
 public class BrokenLineGraphView extends View {
+    /**
+     * 今日拜访图标
+     */
     private float viewWith;//控件宽度
     private float viewHeight;//控件高度
     private String[] monthText;//横坐标值
@@ -31,14 +34,14 @@ public class BrokenLineGraphView extends View {
     private Paint pointPaint; //未选中的点
     private Paint pointSelectePoint;//选中的点
     private Paint straightPaint;//直线画笔
-    private Paint dottedPaint;//虚线画笔
+
     private Paint textPaint;//字体画笔 月份 和浮动显示值 共用
     private Path brokenPath;//浮动背景path
     private int halfScore;//y中间值
     private int maxScore;//y轴最大值 这里由数字数组 上求整获得
     private int minScore;//y轴最小值这里默认0
     private float xToRightOrLeft = 0.05f;//设置 x轴左边倍距和右边倍距
-    private int monthCount = 3;//默认横坐标数目
+    private int monthCount;//默认横坐标数目
     private int selectMonth = -1;//选中的月份
     private List<Point> scorePoints;
     private int[] score;//坐标点 横坐标是定值 竖坐标整数数组
@@ -51,7 +54,7 @@ public class BrokenLineGraphView extends View {
     private Paint pointFillPaint;// 填充原点画笔
     private Paint textYPaint;//y轴 文字 画笔
     private Paint textXPaint;//x轴 文字画笔
-    private Paint floatWindowText;//悬浮窗内文字文字画笔
+
     private Path brokenHalfPath;// 折线路径
     private Path brokenClosePath;// 闭合折线路径
     private Paint brokenClosePaint;//闭合折线 画笔
@@ -59,6 +62,8 @@ public class BrokenLineGraphView extends View {
     private float touchX; //点击 坐标x值
     private float touchY;//点击 坐标y值
 
+    private Boolean isFloatWindowShow = false;
+    private int monthVisitSum;
 
     public BrokenLineGraphView(Context context) {
         super(context);
@@ -82,8 +87,8 @@ public class BrokenLineGraphView extends View {
     /**
      * 初始化布局配置
      *
-     * @param context
-     * @param attrs
+     * @param context 上下文
+     * @param attrs 参数
      */
     private void initConfig(Context context, AttributeSet attrs) {
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.BrokenLineGraphView);
@@ -154,13 +159,6 @@ public class BrokenLineGraphView extends View {
         straightPaint.setColor((straightLineColor));
         straightPaint.setStrokeCap(Paint.Cap.ROUND);
 
-        //虚线画笔
-        dottedPaint = new Paint();
-        dottedPaint.setAntiAlias(true);
-        dottedPaint.setStyle(Paint.Style.STROKE);
-        dottedPaint.setStrokeWidth(brokenLineWith);
-        dottedPaint.setColor((straightLineColor));
-        dottedPaint.setStrokeCap(Paint.Cap.ROUND);
 
         //文字画笔 浮动的文字 和 横坐标值 以下文字 设置像素大小值
         textPaint = new Paint();
@@ -176,13 +174,7 @@ public class BrokenLineGraphView extends View {
         textXPaint.setStyle(Paint.Style.FILL);
         textXPaint.setColor((textNormalColor));
         textXPaint.setTextSize(dipToPx(6));
-        //悬浮窗文字
-        floatWindowText = new Paint();
-        floatWindowText.setAntiAlias(true);
-        floatWindowText.setTextAlign(Paint.Align.CENTER);
-        floatWindowText.setStyle(Paint.Style.FILL);
-        floatWindowText.setColor(Color.WHITE);
-        floatWindowText.setTextSize(dipToPx(8));
+
 
         //y 轴文字
         textYPaint = new Paint();
@@ -192,8 +184,13 @@ public class BrokenLineGraphView extends View {
         textYPaint.setStyle(Paint.Style.FILL);
     }
 
-    //添加赋值 坐标 list  wangyu
-    //赋值方法
+    /**
+     * 任务拜访传参数调用方法 调用此方法 显示折线图
+     *
+     * @param score 竖坐标
+     * @param date 横坐标
+     */
+    /*@param monthVisitSum 今日拜访总数 该月内*/
     public void setScore(ArrayList<Integer> score, ArrayList<String> date) {
         int[] y = new int[score.size()];
         for (int i = 0, num = score.size(); i < num; i++) {
@@ -213,9 +210,12 @@ public class BrokenLineGraphView extends View {
         this.halfScore = getIntMaxFormat(getMaxNum(score)) / 2;
         this.monthText = date;//X轴坐标
         monthCount = score.length;//坐标点个数
+        selectMonth = 0;//默认显示第一个
+        isFloatWindowShow = false;
         initData();
         invalidate();
     }
+
 
     //得到Y轴高度
     public float getYHeight() {
@@ -235,6 +235,7 @@ public class BrokenLineGraphView extends View {
         //获得坐标点的坐标
         //得到横坐标的数量
         scorePoints = new ArrayList<>();
+        if (score == null) return;
         for (int i = 0; i < monthCount; i++) {
             Log.v("BrokenLineGraphView", "initData: " + score[i]);
             Point point = new Point();
@@ -252,7 +253,7 @@ public class BrokenLineGraphView extends View {
         Log.d("BrokenLineGraphView", "测量");
         viewWith = w;
         viewHeight = h;
-        //  initData();
+        initData();
     }
 
     @Override
@@ -266,7 +267,7 @@ public class BrokenLineGraphView extends View {
         //画y轴
         //canvas.drawLine(viewWith * xToRightOrLeft, viewHeight * xToViewTOp, viewWith * xToRightOrLeft, viewHeight * yTopToViewTop + dipToPx(4), straightPaint);
         //画中间x轴虚线
-        drawDottedLine(canvas, viewWith * xToRightOrLeft, viewHeight * 0.4f, viewWith, viewHeight * 0.4f);
+        drawDottedLine(canvas, viewWith * xToRightOrLeft, viewHeight * 0.4f, viewWith, viewHeight * 0.4f, Color.LTGRAY);
         //画月份 和 y值
         drawText(canvas);
         //画x轴 和刻度
@@ -277,7 +278,8 @@ public class BrokenLineGraphView extends View {
         drawPoint(canvas);
 
         //绘制悬浮框 如果点击触发了 显示悬浮窗 走这里
-        if (selectMonth != -1)
+//        if (selectMonth != -1)
+        if (isFloatWindowShow)
             drawFloatWidow(canvas);
 
 
@@ -313,11 +315,11 @@ public class BrokenLineGraphView extends View {
 
     //是否是有效的触摸范围
     private boolean validateTouch(float x, float y) {
-
+        if (scorePoints == null || scorePoints.size() == 0) return true;
         //曲线触摸区域
         for (int i = 0; i < scorePoints.size(); i++) {
             // dipToPx(8)乘以2为了适当增大触摸面积
-            if (x > (scorePoints.get(i).x - dipToPx(2) * 2) && x < (scorePoints.get(i).x + dipToPx(2) * 2)) {
+            if (x > (scorePoints.get(i).x - dipToPx(5) * 2) && x < (scorePoints.get(i).x + dipToPx(5) * 2)) {
                 /*if (y > (scorePoints.get(i).y - dipToPx(8) * 2) && y < (scorePoints.get(i).y + dipToPx(8) * 2)) {
 
                 }*/
@@ -325,6 +327,7 @@ public class BrokenLineGraphView extends View {
                 selectMonth = i;
                 touchX = x;
                 touchY = y;
+                isFloatWindowShow = true;
                 return true;
             }
         }
@@ -344,6 +347,7 @@ public class BrokenLineGraphView extends View {
                     selectMonth = i;
                     touchX = x;
                     touchY = y;
+                    isFloatWindowShow = true;
                     return true;
                 }
             }
@@ -356,6 +360,14 @@ public class BrokenLineGraphView extends View {
             invalidate();
             return true;
         }
+
+        if (!(xToRightOrLeft * viewWith < x && x < getXWidth() - xToRightOrLeft * viewWith
+                && y > yTopToViewTop * viewHeight && y < xToViewTOp * viewHeight)) {
+            isFloatWindowShow = false;
+            invalidate();
+            return true;
+        }
+
         return false;
     }
 
@@ -386,9 +398,9 @@ public class BrokenLineGraphView extends View {
         canvas.drawPath(brokenClosePath, brokenClosePaint);//画闭合折线
         //画折线
         brokenHalfPath.reset();
-        brokenHalfPath.moveTo(scorePoints.get(0).x - 1, scorePoints.get(0).y - 1);//从第一个坐标开始画
+        brokenHalfPath.moveTo(scorePoints.get(0).x, scorePoints.get(0).y);//从第一个坐标开始画
         for (int i = 0, num = scorePoints.size(); i < num; i++) {
-            brokenHalfPath.lineTo(scorePoints.get(i).x - 1, scorePoints.get(i).y - 1);
+            brokenHalfPath.lineTo(scorePoints.get(i).x, scorePoints.get(i).y);
         }
         canvas.drawPath(brokenHalfPath, brokenHalfPaint);//画折线
     }
@@ -400,16 +412,16 @@ public class BrokenLineGraphView extends View {
         }
         for (int i = 0; i < scorePoints.size(); i++) {
             // 画点中前的颜色 先描边 再填充白色
-            canvas.drawCircle(scorePoints.get(i).x + 1, scorePoints.get(i).y + 1, 5f, pointPaint);
-            canvas.drawCircle(scorePoints.get(i).x + 1, scorePoints.get(i).y + 1, 5f, pointFillPaint);
+            canvas.drawCircle(scorePoints.get(i).x, scorePoints.get(i).y, px2dip(19), pointPaint);
+            canvas.drawCircle(scorePoints.get(i).x, scorePoints.get(i).y, px2dip(19), pointFillPaint);
             if (i == selectMonth) {
                 //有选中的点 后边加功能
 
                 //画虚线 过坐标点 平行y轴
-                drawDottedLine(canvas, scorePoints.get(i).x, xToViewTOp * viewHeight, scorePoints.get(i).x, viewHeight * yTopToViewTop);
+                drawDottedLine(canvas, scorePoints.get(i).x, xToViewTOp * viewHeight, scorePoints.get(i).x, viewHeight * yTopToViewTop, Color.LTGRAY);
 
                 //画大圆点
-                canvas.drawCircle(scorePoints.get(i).x, scorePoints.get(i).y, 8f, pointSelectePoint);
+                canvas.drawCircle(scorePoints.get(i).x, scorePoints.get(i).y, px2dip(35), pointSelectePoint);
                /* //绘制浮动文本背景框
                 drawFloatTextBackground(canvas, scorePoints.get(i).x, scorePoints.get(i).y - dipToPx(8f));
                 textPaint.setColor(0xffffffff);
@@ -435,8 +447,15 @@ public class BrokenLineGraphView extends View {
     //得到第几个x坐标值
     private float getCoordinateX(int index) {
         float coordinateX;
-        coordinateX = getXWidth() * ((float) (index) / (monthCount - 1)) + (viewWith * xToRightOrLeft);//刻度的高度  0点坐标从view 的左上角开始
+        if (monthCount == 1) {
+            coordinateX = viewWith * xToRightOrLeft;
+        } else {
+            coordinateX = getXWidth() * ((float) (index) / (monthCount - 1)) + (viewWith * xToRightOrLeft);//刻度的高度  0点坐标从view 的左上角开始}
+
+        }
         return coordinateX;
+
+
     }
 
     //得到X轴宽度
@@ -454,8 +473,8 @@ public class BrokenLineGraphView extends View {
         canvas.drawText(String.valueOf(halfScore), viewWith * xToRightOrLeft - textSize, viewHeight * (yTopToViewTop + xToViewTOp) / 2 + textSize * 0.25f, textYPaint);
         // canvas.drawText(String.valueOf(minScore), viewWith * xToRightOrLeft , viewHeigh t *xToViewTOp + textSize * 0.25f, textYPaint);
         float coordinateX;//分隔线X坐标
-        textSize = (int) textPaint.getTextSize();
-        //这里画 月份背景
+        textSize = (int) textYPaint.getTextSize();
+        //这里画 月份背景 monthCount横坐标个数
         for (int i = 0; i < monthCount; i++) {
             coordinateX = getCoordinateX(i);
             if (i == selectMonth) {
@@ -474,98 +493,135 @@ public class BrokenLineGraphView extends View {
         }
     }
 
-    public void drawFloatText(Canvas canvas, Point point) {
+    public void drawFloatText(Canvas canvas, Point pointCircle, float w, float h) {
 
         //画原点
-        canvas.drawCircle(point.x + 15, point.y + floatWindowText.getTextSize(), 5f, pointFillPaint);
+        canvas.drawCircle(pointCircle.x + px2dip(160), pointCircle.y + px2dip(160), px2dip(40), pointFillPaint);
+
+        Paint floatWindowTextPaint;//悬浮窗内文字文字画笔
+        floatWindowTextPaint = new Paint();
+        floatWindowTextPaint.setAntiAlias(true);
+        floatWindowTextPaint.setTextAlign(Paint.Align.LEFT);
+        floatWindowTextPaint.setStyle(Paint.Style.FILL);
+        floatWindowTextPaint.setColor(Color.WHITE);
+        floatWindowTextPaint.setTextSize(dipToPx(13));
         // 画文字
-        canvas.drawText(monthText[selectMonth], point.x + 4 * floatWindowText.getTextSize(), point.y + floatWindowText.getTextSize() + 5, floatWindowText);
+        canvas.drawText("今日拜访数：" + score[selectMonth]
+                , pointCircle.x + px2dip(160) + 2 * px2dip(40)
+                , pointCircle.y + px2dip(160) + px2dip(40)
+                , floatWindowTextPaint);
+        //画虚线 过坐标点 平行x轴
+        drawDottedLine(canvas
+                , pointCircle.x + dipToPx(10)
+                , pointCircle.y + floatWindowTextPaint.getTextSize() + px2dip(160)
+                , pointCircle.x + w - dipToPx(10)
+                , pointCircle.y + floatWindowTextPaint.getTextSize() + px2dip(160), Color.WHITE);
+        canvas.drawText("月累计拜访数：" + score[selectMonth]
+                , pointCircle.x + px2dip(160) - px2dip(40)
+                , pointCircle.y + px2dip(160) + px2dip(40) + 2 * floatWindowTextPaint.getTextSize()
+                , floatWindowTextPaint);
 
     }
 
     /**
      * 绘制悬浮框
      *
-     * @param canvas
+     * @param canvas 画布
      */
     private void drawFloatWidow(Canvas canvas) {
         brokenPath.reset();
         // touchX
-        float w = getXWidth() * 2 / 6;
-        float h = getYHeight() * 2 / 6;
-        Point point1 = new Point((int) touchX, (int) touchY);
+        float w = getXWidth() * 3 / 6;
+        float h = getYHeight() * 3 / 6;
+        Log.d("标", "第一个坐标" + touchX + "点击坐标" + (touchX - w / 2));
+        Point point1;
         Point point2;
         Point point3;
         Point point4;
         Point pointCircle;
-        brokenPath.moveTo(point1.x, point1.y);
         if (touchX - xToRightOrLeft * viewWith < w || touchX == xToRightOrLeft * viewWith) {
+            float point1x = touchX - w / 2;//防止弹窗超出界面
+            if (point1x < xToRightOrLeft || point1x == xToRightOrLeft) {
+                point1x = touchX;
+            }
+            point1 = new Point((int) (point1x), (int) touchY);
+            brokenPath.moveTo(point1.x, point1.y);
             //第一象限
             if (getYHeight() - touchY < h || getYHeight() - touchY == h) {
-                point2 = new Point((int) (touchX + w), (int) touchY);
+                point2 = new Point((int) (point1x + w), (int) touchY);
                 brokenPath.lineTo(point2.x, point2.y);
-                point3 = new Point((int) (touchX + w), (int) (touchY - h));
+                point3 = new Point((int) (point1x + w), (int) (touchY - h));
                 brokenPath.lineTo(point3.x, point3.y);
-                point4 = new Point((int) touchX, (int) (touchY - h));
+                point4 = new Point((int) point1x, (int) (touchY - h));
                 brokenPath.lineTo(point4.x, point4.y);
                 brokenPath.close();
-                //画 悬浮窗内 内容
                 pointCircle = point4;
             } else {
                 //第四象限
-                point2 = new Point((int) (touchX + w), (int) touchY);
+                point2 = new Point((int) (point1x + w), (int) touchY);
                 brokenPath.lineTo(point2.x, point2.y);
-                point3 = new Point((int) (touchX + w), (int) (touchY + h));
+                point3 = new Point((int) (point1x + w), (int) (touchY + h));
                 brokenPath.lineTo(point3.x, point3.y);
-                point4 = new Point((int) touchX, (int) (touchY + h));
+                point4 = new Point((int) point1x, (int) (touchY + h));
                 brokenPath.lineTo(point4.x, point4.y);
                 brokenPath.close();
-                //画 悬浮窗内 内容
                 pointCircle = point1;
             }
         } else {
+            //防止弹窗超出界面
+            float point1x = touchX + w / 2;
+            if (point1x > (1 - xToRightOrLeft) * viewWith || point1x == (1 - xToRightOrLeft) * viewWith) {
+                point1x = touchX;
+            }
+            point1 = new Point((int) (point1x), (int) touchY);
+            brokenPath.moveTo(point1.x, point1.y);
             if (getYHeight() - touchY < h || getYHeight() - touchY == h) {
                 //第二象限
-                point2 = new Point((int) (touchX - w), (int) touchY);
+                point2 = new Point((int) (point1x - w), (int) touchY);
                 brokenPath.lineTo(point2.x, point2.y);
-
-                point3 = new Point((int) (touchX - w), (int) (touchY - h));
+                point3 = new Point((int) (point1x - w), (int) (touchY - h));
                 brokenPath.lineTo(point3.x, point3.y);
-
-                point4 = new Point((int) (touchX), (int) (touchY - h));
+                point4 = new Point((int) (point1x), (int) (touchY - h));
                 brokenPath.lineTo(point4.x, point4.y);
                 brokenPath.close();
-                //画 悬浮窗内 内容
                 pointCircle = point3;
             } else {
                 // 第三象限
-                point2 = new Point((int) (touchX - w), (int) touchY);
-
+                point2 = new Point((int) (point1x - w), (int) touchY);
                 brokenPath.lineTo(point2.x, point2.y);
-
-                point3 = new Point((int) (touchX - w), (int) (touchY + h));
+                point3 = new Point((int) (point1x - w), (int) (touchY + h));
                 brokenPath.lineTo(point3.x, point3.y);
-
-                point4 = new Point((int) (touchX), (int) (touchY + h));
+                point4 = new Point((int) (point1x), (int) (touchY + h));
                 brokenPath.lineTo(point4.x, point4.y);
-                //画 悬浮窗内 内容
+                brokenPath.close();
                 pointCircle = point2;
             }
         }
+
         brokenTextPaint.setAntiAlias(true);
         brokenTextPaint.setStyle(Paint.Style.FILL_AND_STROKE);
         brokenTextPaint.setStrokeWidth(dipToPx(brokenLineWith));
         brokenTextPaint.setStrokeCap(Paint.Cap.ROUND);
-        brokenTextPaint.setColor(0x88696969);//透明灰
-        //brokenTextPaint.setColor(Color.RED);
-        brokenPath.close();
+        brokenTextPaint.setColor(0x00ffffff);
+//画圆角矩形
+        drawRoundRectView(canvas, pointCircle, w, h);
+        //画 悬浮窗内 内容  不画矩形路径 改画 圆角矩形
         canvas.drawPath(brokenPath, brokenTextPaint);
-        drawFloatText(canvas, pointCircle);
-        //画虚线 过坐标点 平行x轴
-        drawDottedLine(canvas, pointCircle.x + 15, pointCircle.y + floatWindowText.getTextSize()+15, pointCircle.x + w - 15, pointCircle.y + floatWindowText.getTextSize() + 15);
+        drawFloatText(canvas, pointCircle, w, h);
+
 //
 
 
+    }
+
+    private void drawRoundRectView(Canvas canvas, Point point, float w, float h) {
+        Paint p = new Paint();
+        p.setStyle(Paint.Style.FILL);//充满
+        p.setColor(0x88696969);//透明灰
+        p.setColor(0x88696969);
+        p.setAntiAlias(true);// 设置画笔的锯齿效果
+        RectF oval3 = new RectF(point.x, point.y, point.x + w, point.y + h);// 设置个新的长方形
+        canvas.drawRoundRect(oval3, 20, 15, p);//第二个参数是x半径，第三个参数是y半径
     }
 
     //绘制显示浮动文字的背景
@@ -618,7 +674,15 @@ public class BrokenLineGraphView extends View {
      * @param stopX  终点X坐标
      * @param stopY  终点Y坐标
      */
-    private void drawDottedLine(Canvas canvas, float startX, float startY, float stopX, float stopY) {
+    private void drawDottedLine(Canvas canvas, float startX, float startY, float stopX, float stopY, int colorInt) {
+        //虚线画笔
+        Paint dottedPaint;//虚线画笔
+        dottedPaint = new Paint();
+        dottedPaint.setAntiAlias(true);
+        dottedPaint.setStyle(Paint.Style.STROKE);
+        dottedPaint.setStrokeWidth(brokenLineWith);
+        dottedPaint.setColor(colorInt);
+        dottedPaint.setStrokeCap(Paint.Cap.ROUND);
         dottedPaint.setPathEffect(new DashPathEffect(new float[]{20, 10}, 4));
         dottedPaint.setStrokeWidth(1);
         // 实例化路径
@@ -634,8 +698,8 @@ public class BrokenLineGraphView extends View {
     /**
      * dip 转换成px
      *
-     * @param dip
-     * @return
+     * @param dip 像素
+     * @return 返回变换后的适应尺寸
      */
     private int dipToPx(float dip) {
         float density = getContext().getResources().getDisplayMetrics().density;
@@ -667,5 +731,10 @@ public class BrokenLineGraphView extends View {
     public static int getIntMaxFormat(int num) {
         Double format = (num / 10.0);
         return (int) (Math.ceil(format) * 10);
+    }
+
+    public int px2dip(float pxValue) {
+        final float scale = getResources().getDisplayMetrics().density;
+        return (int) (pxValue / scale + 0.5f);
     }
 }
